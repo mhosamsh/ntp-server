@@ -5,7 +5,7 @@ ENV PYTHONUNBUFFERED=1
 # default timezone (can override with docker run -e TZ=UTC)
 ENV TZ=Asia/Tehran
 # ignore local ip like healthcheck
-ENV IGNORE_CLIENT_IPS="127.0.0.1,::1,172.17.0.1"
+ENV IGNORE_CLIENT_IPS="127.0.0.1,::1"
 
 # Set the working directory in the container
 WORKDIR /app
