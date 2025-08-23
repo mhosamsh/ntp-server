@@ -1,7 +1,8 @@
 # Use an official Python 3.11 slim image for better prformance
 FROM python:3.11-slim
 
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONUNBUFFERED=1 \
+    TZ=Asia/Tehran   # default timezone (can override with docker run -e TZ=UTC)
 
 # Set the working directory in the container
 WORKDIR /app

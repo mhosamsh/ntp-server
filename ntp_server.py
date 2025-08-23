@@ -1,10 +1,23 @@
-import datetime
 import socket
 import struct
 import time
 import queue
 import threading
 import select
+import logging
+import sys
+import os
+from datetime import datetime
+
+tz = os.getenv("TZ", "UTC")  # default UTC if not set
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True
+)
+
+time.tzset()
 
 # Global variables
 taskQueue = queue.Queue()
@@ -179,7 +192,6 @@ class RecvThread(threading.Thread):
                 break
             rlist, _, _ = select.select([self.sock], [], [], 1)
             if rlist:
-                print("Received {} packets".format(len(rlist)))
                 for s in rlist:
                     try:
                         data, addr = s.recvfrom(1024)
@@ -227,7 +239,7 @@ class WorkThread(threading.Thread):
                 response = sendPacket.to_data()
 
                 self.sock.sendto(response, addr)
-                print("Sent to {}:{}".format(addr[0], addr[1]))
+                logging.info(f"Handled NTP request from {addr[0]}")
             except queue.Empty:
                 continue
 
@@ -237,7 +249,7 @@ def main():
     listenPort = 123
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((listenIp, listenPort))
-    print("Local socket: ", sock.getsockname())
+    logging.info(f"Listening on {sock.getsockname()}")
 
     recvThread = RecvThread(sock)
     recvThread.start()
