@@ -99,7 +99,7 @@ yaml
 version: "3.9"
 
 networks:
-  sina-network:
+  your-network:      # define your network here
     external: true   # or define it here if you don’t have it yet
 
 services:
