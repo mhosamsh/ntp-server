@@ -106,7 +106,7 @@ services:
   ntp-server:
     image: ntp-server:V1.8   # ⬅️ pin a specific version tag
     networks:
-      - sina-network
+      - your-network
 
     # Publish directly on the node (no mesh/NAT) to preserve client IPs
     ports:
