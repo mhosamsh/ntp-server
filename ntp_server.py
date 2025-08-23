@@ -4,7 +4,7 @@ import time
 import queue
 import threading
 import select
-import logging
+import logging, sys, time
 import sys
 import os
 import datetime
@@ -14,10 +14,18 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)],
-    force=True
+    force=True,
 )
 
-time.tzset()
+if hasattr(time, "tzset"):
+    time.tzset()
+
+
+IGNORE_CLIENT_IPS = set(
+    ip.strip() for ip in os.getenv("IGNORE_CLIENT_IPS", "").split(",") if ip.strip()
+)
+logging.info("Ignoring IPs for logging: %s", ", ".join(IGNORE_CLIENT_IPS) or "None")
+
 
 # Global variables
 taskQueue = queue.Queue()
@@ -240,7 +248,8 @@ class WorkThread(threading.Thread):
                 response = sendPacket.to_data()
 
                 self.sock.sendto(response, addr)
-                logging.info(f"Handled NTP request from {addr[0]}")
+                if addr[0] not in IGNORE_CLIENT_IPS:
+                    logging.info("Handled NTP request from %s", addr[0])
             except queue.Empty:
                 continue
 
