@@ -99,14 +99,14 @@ yaml
 version: "3.9"
 
 networks:
-  your-network:      # define your network here
+  ntp-network:      # define your network here
     external: true   # or define it here if you don’t have it yet
 
 services:
   ntp-server:
     image: ntp-server:V1.8   # ⬅️ pin a specific version tag
     networks:
-      - your-network
+      - ntp-network
 
     # Publish directly on the node (no mesh/NAT) to preserve client IPs
     ports:
