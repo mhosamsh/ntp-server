@@ -7,7 +7,7 @@ import select
 import logging
 import sys
 import os
-from datetime import datetime
+import datetime
 
 tz = os.getenv("TZ", "UTC")  # default UTC if not set
 logging.basicConfig(
@@ -51,8 +51,9 @@ class NTPException(Exception):
 
 class NTP:
     """Helper class defining constants."""
-    _SYSTEM_EPOCH = datetime.date(*time.gmtime(0)[0:3])
-    _NTP_EPOCH = datetime.date(1900, 1, 1)
+
+    _SYSTEM_EPOCH = datetime.date(*time.gmtime(0)[:3])  # 1970-01-01
+    _NTP_EPOCH    = datetime.date(1900, 1, 1)
     NTP_DELTA = (_SYSTEM_EPOCH - _NTP_EPOCH).days * 24 * 3600
 
     REF_ID_TABLE = {
