@@ -1,94 +1,176 @@
+# NTP Server (UDP/123) – Docker & Swarm Ready
+
+A lightweight Python-based NTP responder packaged for Docker and Swarm.  
+It can run standalone (docker run), via **Docker Compose** on a single host, or globally across a **Swarm** cluster with proper healthchecks and logging.
+
+> ⚠️ This is **not** a disciplined/production-grade NTP daemon; it’s intended for labs/testing where you just need a simple time responder.
+
 ---
 
-NTP Server (UDP/123) – Docker & Swarm Ready
+## Project Layout
 
-A lightweight Python-based NTP responder packaged for Docker and Swarm.
-It can run standalone (docker run) or globally across a Swarm cluster with proper healthchecks and logging.
-
-
----
-
-Project Layout
-
+```
 .
 ├── Dockerfile        # Container build definition
 ├── ntp_server.py     # UDP NTP server (listens on port 123/udp)
 └── healthcheck.py    # Health probe (performs a local NTP round-trip)
-
+```
 
 ---
 
-Features
+## Features
 
-Minimal NTP responder (suitable for lab/testing use).
-
-Container healthcheck via healthcheck.py.
-
-Supports Docker Swarm global mode (one task per node).
-
-Logs handled via Python’s logging module (no stdout spam).
-
-Ignores local healthcheck IPs by default:
-
-127.0.0.1
-
-::1
-
-Docker gateway IP (172.17.0.1)
-
+- Minimal NTP responder (suitable for lab/testing use).
+- Container healthcheck via `healthcheck.py`.
+- Supports Docker Swarm **global** mode (one task per node).
+- Logs handled via Python’s logging module (no stdout spam).
+- Ignores local healthcheck IPs by default:
+  - `127.0.0.1`
+  - `::1`
+  - Docker gateway IP (`172.17.0.1`)
 
 > These can be customized inside the Dockerfile for your environment.
 
+---
 
+## Build the Image
 
+Local build (replace `tag` with your version, e.g., `2.8`):
 
+```bash
+git clone https://github.com/mhosamsh/ntp-server.git
+cd ntp-server
+
+docker build -t ntp-server:tag .
+```
 
 ---
 
+## Run Locally (Quick Test)
 
-Build the Image
+```bash
+docker run --rm   --cap-add NET_BIND_SERVICE   -p 123:123/udp   -v /etc/localtime:/etc/localtime:ro   --name ntp-test ntp-server:tag
+```
 
-Local Build
+Expected logs:
 
-docker build -t ntp-server:V2.4 .
-
-
----
-
-Run Locally (Quick Test)
-
-docker run --rm \
-  --cap-add NET_BIND_SERVICE \
-  -p 123:123/udp \
-  -v /etc/localtime:/etc/localtime:ro \
-  --name ntp-test ntp-server:V2.4
-
-Logs will show activity like:
-
+```
 [INFO] Listening on ('0.0.0.0', 123)
 [INFO] Handled NTP request from 192.168.204.50
-
+```
 
 ---
 
-Swarm Deployment
+## Docker Compose (single host)
 
-stack.yml example:
+Single-host mode is great for a lab box. You have two options:
 
+### Option A — Host networking (preserves host’s native UDP/123)
+> Use this if you want the container to bind directly to the host’s UDP/123. You **cannot** use `ports:` with host mode.
+
+`docker-compose.yml`:
+```yaml
 version: "3.9"
 
 services:
   ntp-server:
-    image: USER/ntp-server:V2.4   # pin a version
+    image: ntp-server:tag
+    container_name: ntp-server
+    network_mode: host
+    cap_add:
+      - NET_BIND_SERVICE
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "/healthcheck.py"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: 100m
+        max-file: "3"
+```
+
+Bring it up:
+```bash
+docker compose up -d
+```
+
+### Option B — Bridge networking (simple; NATed client IPs)
+> Use this if you prefer standard Docker port publishing and don’t need true client IP preservation.
+
+`docker-compose.yml`:
+```yaml
+version: "3.9"
+
+services:
+  ntp-server:
+    image: ntp-server:tag
+    container_name: ntp-server
+    ports:
+      - "123:123/udp"
+    cap_add:
+      - NET_BIND_SERVICE
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "/healthcheck.py"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: 100m
+        max-file: "3"
+```
+
+Bring it up:
+```bash
+docker compose up -d
+```
+
+---
+
+## Docker Swarm (global on every node; preserves client IPs)
+
+For multi-node deployments, Swarm with **host-mode** publishing keeps client IPs intact and runs one replica per node.
+
+Create `stack-ntp.yml`:
+```yaml
+version: "3.9"
+
+networks:
+  ntp-network:
+
+services:
+  ntp-server:
+    image: ntp-server:tag
+
+    networks:
+      - ntp-network
+
+    # Publish directly on the node (no mesh/NAT), keeps client IP
     ports:
       - target: 123
         published: 123
         protocol: udp
         mode: host
+
     cap_add:
       - NET_BIND_SERVICE
+
     volumes:
       - /etc/localtime:/etc/localtime:ro
+
+    restart: always
+
     deploy:
       mode: global
       update_config:
@@ -97,53 +179,55 @@ services:
         limits:
           cpus: "1"
           memory: 1G
+
     logging:
       options:
         max-file: "3"
         max-size: 100m
+```
 
 Deploy it:
-
-docker stack deploy -c stack.yml ntp
+```bash
+docker swarm init   # skip if your swarm is already initialized
+docker stack deploy -c stack-ntp.yml ntp
 docker service logs -f ntp_ntp-server
-
-
----
-
-Healthcheck
-
-Add this snippet in Dockerfile to enable container health monitoring:
-
-HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
-  CMD python3 /healthcheck.py || exit 1
-
+```
 
 ---
 
-Troubleshooting
+## Healthcheck (Dockerfile snippet)
 
-Port already in use: ss -ulpn | grep :123
+If not already present, add this in your `Dockerfile` to enable container health monitoring:
 
-Firewall issues: allow inbound UDP/123.
-
-Testing from host:
-ntpdate -q 127.0.0.1
-or
-chronyc -a sourcestats
-
-No response in Swarm: ensure mode: host is used (not ingress mesh).
-
-
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=3s --retries=3   CMD python3 /healthcheck.py || exit 1
+```
 
 ---
 
-Notes
+## Troubleshooting
 
-This project is not a disciplined NTP server — it just echoes time.
-
-Run in Swarm global mode for consistency across nodes.
-
-
+- **Port already in use**  
+  ```bash
+  ss -ulpn | grep :123
+  ```
+- **Firewall issues**  
+  Allow inbound **UDP/123** to the host (and between nodes if using Swarm).
+- **Testing from host**  
+  ```bash
+  ntpdate -q 127.0.0.1
+  # or
+  chronyc -a sourcestats
+  ```
+- **No response in Swarm**  
+  Ensure `mode: host` is used (not ingress mesh).
 
 ---
 
+## Notes
+
+- Prefer **Swarm + host-mode** if you need correct, un-NATed client IPs.
+- Single-host Compose is simpler but NATs client IPs (unless using `network_mode: host`).
+- This project is meant for **lab/testing**, not precision timekeeping.
+
+---
