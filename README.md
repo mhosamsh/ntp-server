@@ -3,7 +3,6 @@
 A lightweight Python-based NTP responder packaged for Docker and Swarm.  
 It can run standalone (docker run), via **Docker Compose** on a single host, or globally across a **Swarm** cluster with proper healthchecks and logging.
 
-> ⚠️ This is **not** a disciplined/production-grade NTP daemon; it’s intended for labs/testing where you just need a simple time responder.
 
 ---
 
